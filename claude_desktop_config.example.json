@@ -4,7 +4,7 @@
       "command": "java",
       "args": [
         "-jar",
-        "C:\\Users\\Vivart\\Documents\\develop\\exchange-rate-mcp\\build\\libs\\exchange-rate-mcp.jar"
+        "C:\\Users\\Vivart\\Documents\\develop\\exchange-rate-mcp\\build\\libs\\exchange-rate-mcp-1.0.0.jar"
       ]
     }
   }

@@ -2,17 +2,17 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server written in Kotlin that exposes live currency exchange rate tools to any MCP-compatible AI client (Claude Desktop, Claude Code, etc.).
 
-Exchange rates are fetched from [open.er-api.com](https://open.er-api.com) — **free, no API key required**, updated daily.
+Exchange rates are fetched from [Frankfurter](https://frankfurter.dev) (`api.frankfurter.dev/v2`) — **free, no API key required**, sourced from the European Central Bank.
 
 ---
 
 ## Tools
 
-| Tool                | Description                                         | Parameters                                        |
-|---------------------|-----------------------------------------------------|---------------------------------------------------|
-| `get_exchange_rate` | Get the rate between two currencies                 | `from` (string), `to` (string)                    |
-| `convert_currency`  | Convert an amount from one currency to another      | `from` (string), `to` (string), `amount` (number) |
-| `list_currencies`   | List all ~170 supported currencies with their rates | `base` (string, default: `USD`)                   |
+| Tool                | Description                                    | Parameters                                        |
+|---------------------|------------------------------------------------|---------------------------------------------------|
+| `get_exchange_rate` | Get the current rate between two currencies    | `from` (string), `to` (string)                    |
+| `convert_currency`  | Convert an amount from one currency to another | `from` (string), `to` (string), `amount` (number) |
+| `list_currencies`   | List all supported currencies                  | *(none)*                                          |
 
 ### Example prompts
 
@@ -20,7 +20,7 @@ Exchange rates are fetched from [open.er-api.com](https://open.er-api.com) — *
 
 > "Convert 500 EUR to GBP"
 
-> "List all currencies relative to INR"
+> "List all supported currencies"
 
 ---
 
@@ -36,39 +36,49 @@ Exchange rates are fetched from [open.er-api.com](https://open.er-api.com) — *
 
 ## Build
 
-```bash
+```bat
 # Windows
-.\gradlew.bat shadowJar
+.\gradlew.bat jar
 
 # macOS / Linux
-./gradlew shadowJar
+./gradlew jar
 ```
 
-The fat JAR is produced at:
+The fat JAR (includes all dependencies) is produced at:
 
 ```
-build/libs/exchange-rate-mcp.jar
+build/libs/exchange-rate-mcp-1.0.0.jar
 ```
 
 ---
 
-## Run (manual test)
+## Test
 
-```bash
-java -jar build/libs/exchange-rate-mcp.jar
+```bat
+.\gradlew.bat test
 ```
 
-The server speaks [JSON-RPC 2.0](https://www.jsonrpc.org/specification) over **stdio**. You can paste raw MCP messages to test it, but it is easier to connect it to an MCP client (see below).
+---
+
+## Inspect with MCP Inspector
+
+```bat
+npx @modelcontextprotocol/inspector -- java -jar build/libs/exchange-rate-mcp-1.0.0.jar
+```
+
+Opens a browser UI at `http://localhost:6274` where you can browse and invoke all tools interactively.
 
 ---
 
 ## Connect to Claude Desktop
 
-1. Open (or create) the Claude Desktop config file:
+1. Build the JAR (see above).
+
+2. Open (or create) the Claude Desktop config file:
    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-2. Add the server entry:
+3. Add the server entry:
 
 ```json
 {
@@ -77,60 +87,50 @@ The server speaks [JSON-RPC 2.0](https://www.jsonrpc.org/specification) over **s
       "command": "java",
       "args": [
         "-jar",
-        "C:\\Users\\Vivart\\Documents\\develop\\exchange-rate-mcp\\build\\libs\\exchange-rate-mcp.jar"
+        "C:\\path\\to\\exchange-rate-mcp\\build\\libs\\exchange-rate-mcp-1.0.0.jar"
       ]
     }
   }
 }
 ```
 
-3. Restart Claude Desktop — the tools will appear automatically.
+4. Restart Claude Desktop — the tools will appear automatically.
 
 ---
 
 ## Connect to Claude Code
 
-### 1. Build the JAR (if not already done)
+### 1. Build the JAR
 
 ```bat
-.\gradlew.bat shadowJar
+.\gradlew.bat jar
 ```
 
 ### 2. Register the MCP server
 
-**Windows (PowerShell) — use `cmd` to avoid argument-parsing issues with `-jar`:**
+**Windows (PowerShell):**
 
 ```powershell
-cmd /c "claude mcp add exchange-rate -- java -jar C:\Users\Vivart\Documents\develop\exchange-rate-mcp\build\libs\exchange-rate-mcp.jar"
+cmd /c "claude mcp add exchange-rate -- java -jar C:\path\to\exchange-rate-mcp\build\libs\exchange-rate-mcp-1.0.0.jar"
 ```
-
-Replace the path with the absolute path to the JAR on your machine. Using a relative path does **not** work because Claude Code launches the server from a different working directory.
 
 **macOS / Linux:**
 
 ```bash
-claude mcp add exchange-rate -- java -jar /absolute/path/to/exchange-rate-mcp.jar
+claude mcp add exchange-rate -- java -jar /path/to/exchange-rate-mcp/build/libs/exchange-rate-mcp-1.0.0.jar
 ```
 
-### 3. Verify the server is registered
+Use the **absolute path** to the JAR — relative paths do not work because Claude Code launches the server from a different working directory.
+
+### 3. Verify
 
 ```bash
 claude mcp list
 ```
 
-You should see `exchange-rate` in the output.
-
 ### 4. Restart Claude Code
 
-The MCP server is loaded at startup. Restart Claude Code (or open a new session) for the tools to appear.
-
-### 5. Test it
-
-In a Claude Code session, ask:
-
-> "What is the exchange rate from USD to EUR?"
-
-Claude will use the `get_exchange_rate` tool automatically.
+The MCP server is loaded at startup. Open a new session for the tools to appear.
 
 ---
 
@@ -138,25 +138,17 @@ Claude will use the `get_exchange_rate` tool automatically.
 
 ```
 exchange-rate-mcp/
-├── build.gradle.kts                        # Gradle build (Kotlin DSL)
+├── build.gradle.kts                              # Gradle build (Kotlin DSL)
 ├── settings.gradle.kts
-├── gradle/wrapper/                         # Gradle wrapper (no install needed)
-└── src/main/kotlin/com/exchange/
-    │
-    ├── Main.kt                             # Entry point — builds server, starts stdio transport
-    │
-    ├── api/
-    │   └── ExchangeRateClient.kt           # HTTP client + fetchRates()
-    │
-    ├── model/
-    │   └── ExchangeRateResponse.kt         # Serializable response data class
-    │
-    └── tools/
-        ├── ExchangeRateTools.kt            # registerExchangeRateTools() — wires all tools to the server
-        ├── ToolHelpers.kt                  # Shared successResult() / errorResult() helpers
-        ├── GetExchangeRateTool.kt          # get_exchange_rate tool
-        ├── ConvertCurrencyTool.kt          # convert_currency tool
-        └── ListCurrenciesTool.kt           # list_currencies tool
+├── gradle/wrapper/                               # Gradle wrapper (no install needed)
+└── src/
+    ├── main/kotlin/com/vivart/
+    │   ├── Main.kt                               # Entry point — starts stdio transport
+    │   ├── FrankfurterClient.kt                  # Ktor HTTP client + data classes
+    │   └── ExchangeRateServer.kt                 # MCP server + tool handlers
+    └── test/kotlin/com/vivart/
+        ├── FrankfurterClientTest.kt              # HTTP layer tests (Ktor MockEngine)
+        └── ExchangeRateServerTest.kt             # Tool handler tests (MockK)
 ```
 
 ---
@@ -166,10 +158,11 @@ exchange-rate-mcp/
 | Library                                                                   | Version | Purpose                                                 |
 |---------------------------------------------------------------------------|---------|---------------------------------------------------------|
 | [MCP Kotlin SDK](https://github.com/modelcontextprotocol/kotlin-sdk)      | 0.12.0  | MCP server framework                                    |
-| [Ktor Client](https://ktor.io)                                            | 3.2.0   | HTTP calls to exchange rate API                         |
-| [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)  | 1.9.0   | JSON deserialization                                    |
-| [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines)        | 1.10.2  | Async / suspend functions                               |
-| [Logback](https://logback.qos.ch)                                         | 1.5.18  | Logging (writes to stderr to keep stdout clean for MCP) |
+| [Ktor Client](https://ktor.io)                                            | 3.3.3   | HTTP calls to Frankfurter API                           |
+| [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)  | (bundled with Kotlin 2.3.21) | JSON deserialization          |
+| [Logback](https://logback.qos.ch)                                         | 1.5.32  | Logging (writes to stderr to keep stdout clean for MCP) |
+| Kotlin                                                                    | 2.3.21  | Language                                                |
+| Gradle                                                                    | 9.5.1   | Build tool                                              |
 
 ---
 
@@ -184,60 +177,52 @@ Claude Desktop / Claude Code
       Server  (MCP Kotlin SDK)
         │  dispatches tool calls
         ▼
-  ExchangeRateClient
+  FrankfurterClient
         │  HTTPS GET
         ▼
-  open.er-api.com/v6/latest/{BASE}
+  api.frankfurter.dev/v2
 ```
 
 1. Claude calls a tool (e.g. `convert_currency`).
 2. The MCP server receives the JSON-RPC request over stdin.
-3. `ExchangeRateClient.fetchRates()` fetches the latest rates for the requested base currency.
+3. `FrankfurterClient` fetches live rates from `api.frankfurter.dev/v2`.
 4. The result is formatted and returned to Claude as a text response.
 
 ---
 
 ## Adding a New Tool
 
-1. Create `src/main/kotlin/com/exchange/tools/MyNewTool.kt`:
+1. Add a handler function in `ExchangeRateServer.kt`:
 
 ```kotlin
-package com.exchange.tools
+internal suspend fun myNewTool(param: String): CallToolResult =
+    runCatching { /* call FrankfurterClient or other logic */ }
+        .fold(
+            onSuccess = { toolSuccess("Result: $it") },
+            onFailure = { toolError("Error: ${it.message}") },
+        )
+```
 
-import io.modelcontextprotocol.kotlin.sdk.server.Server
-import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
-import kotlinx.serialization.json.*
+2. Register it in `buildServer()`:
 
-internal fun Server.addMyNewTool() {
-    addTool(
-        name = "my_new_tool",
-        description = "What this tool does.",
-        inputSchema = ToolSchema(
-            properties = buildJsonObject {
-                put("param", buildJsonObject {
-                    put("type", "string")
-                    put("description", "Description of param")
-                })
-            },
-            required = listOf("param"),
-        ),
-    ) { request ->
-        val param = request.arguments?.get("param")?.jsonPrimitive?.content
-            ?: return@addTool errorResult("Missing 'param'")
-        successResult("Result for $param")
-    }
+```kotlin
+server.addTool(
+    name = "my_new_tool",
+    description = "What this tool does.",
+    inputSchema = ToolSchema(
+        properties = buildJsonObject {
+            putJsonObject("param") {
+                put("type", "string")
+                put("description", "Description of param")
+            }
+        },
+        required = listOf("param"),
+    ),
+) { req ->
+    val param = req.arguments?.get("param")?.jsonPrimitive?.content
+        ?: return@addTool toolError("Missing 'param'")
+    myNewTool(param)
 }
 ```
 
-2. Register it in `ExchangeRateTools.kt`:
-
-```kotlin
-fun Server.registerExchangeRateTools() {
-    addGetExchangeRateTool()
-    addConvertCurrencyTool()
-    addListCurrenciesTool()
-    addMyNewTool()          // ← add this line
-}
-```
-
-3. Rebuild: `.\gradlew.bat shadowJar`
+3. Rebuild: `.\gradlew.bat jar`
