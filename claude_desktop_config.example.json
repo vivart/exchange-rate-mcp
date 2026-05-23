@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "exchange-rate": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "C:\\Users\\Vivart\\Documents\\develop\\exchange-rate-mcp\\build\\libs\\exchange-rate-mcp.jar"
+      ]
+    }
+  }
+}
